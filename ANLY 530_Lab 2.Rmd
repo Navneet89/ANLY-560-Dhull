@@ -1,0 +1,59 @@
+---
+title: 'Lab #3'
+author: "Navneet Dhull"
+date: "July 31, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Lab 3 
+```{r lab 3.1 part 1}
+customers <-read.csv("~/Wholesale_customers_data.csv")
+str(customers)
+summary(customers)
+top.n.custs <-function(customers, cols, n=5)
+{
+  idx.to.remove <-integer(0)
+  {col.order <- order(customers[,c], decreasing =T)
+idx <- head(col.order, n)
+idx.to.remove <-union(idx.to.remove, idx)}
+  return(idx.to.remove)
+  }
+top.custs <-top.n.custs(customers, cols=3:8, n=5)
+length(top.custs) #How Many Customers to be Removed?
+top.n.custs[top.custs,]
+
+
+
+```
+
+```{r lab 3.1 part 2}
+news <- read.csv("~/OnlineNewsPopularity.csv")
+str(news)
+newsShort <- data.frame(news$n_tokens_title, news$n_tokens_content, news$n_unique_tokens, news$n_non_stop_words, news$num_hrefs, news$num_imgs, news$num_videos, news$average_token_length, news$num_keywords, news$kw_max_max, news$global_sentiment_polarity, news$avg_positive_polarity, news$title_subjectivity, news$title_sentiment_polarity, news$abs_title_subjectivity, news$abs_title_sentiment_polarity, news$shares)
+
+colnames(newsShort) <- c("n_tokens_title", "n_tokens_content", "n_unique_tokens", "n_non_stop_words", "num_hrefs", "num_imgs", "num_videos", "average_token_length", "num_keywords", "kw_max_max", "global_sentiment_polarity", "avg_positive_polarity", "title_subjectivity", "title_sentiment_polarity", "abs_title_subjectivity", "abs_title_sentiment_polarity", "shares")
+
+newsShort$popular = rep('na', nrow(newsShort))
+for(i in 1:39644) {
+     if(newsShort$shares[i] >= 1400) {
+         newsShort$popular[i] = "yes"} 
+     else {newsShort$popular[i] = "no"}
+}
+newsShort$shares = newsShort$popular
+newsShort$shares <- as.factor(newsShort$shares)
+
+set.seed(12345)
+news_rand <- newsShort[order(runif(10000)), ]
+news_train <- news_rand[1:9000, ]
+news_test <- news_rand[9001:10000, ]
+knn(train = news_train, test = news_test, cl=shares, k = 10)
+```
+
+```{r creditdata}
+```
