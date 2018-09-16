@@ -1,0 +1,177 @@
+---
+title: 'Lab #3'
+author: "Navneet Dhull"
+date: "August 7, 2018"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Lab 3 
+```{r customers, part 1}
+data <-read.csv("~/Wholesale_customers_data.csv")
+str(data)
+summary(data)
+top.n.custs <- function (data,cols,n=5) { #Requires some data frame and the top N to remove
+  idx.to.remove <-integer(0) #Initialize a vector to hold customers being removed
+  for (c in cols){ # For every column in the data we passed to this function
+    col.order <-order(data[,c],decreasing=T) #Sort column "c" in descending order (bigger on top)
+    #Order returns the sorted index (e.g. row 15, 3, 7, 1, ...) rather than the actual values sorted.
+    idx <-head(col.order, n) #Take the first n of the sorted column C to
+    idx.to.remove <-union(idx.to.remove,idx) #Combine and de-duplicate the row ids that need to be   removed
+  }
+  return(idx.to.remove) #Return the indexes of customers to be removed
+}
+top.custs <-top.n.custs(data, cols=3:8, n=5)
+length(top.custs) #How Many Customers to be Removed?
+
+data.rm.top<-data[-c(top.custs),] #Remove the Customers
+set.seed(76964057) #Set the seed for reproducibility
+k <-kmeans(data.rm.top[,-c(1,2)], centers=5) #Create 5 clusters, Remove columns 1 and 2
+
+k$centers #Display&nbsp;cluster 
+# Our results indicate that cluster 1 and 4 seems to be heavy in groceries. For cluster 2, 3 & 5 are dominant in Fresh and lowest in detergents_paper. 
+
+rng<-2:20 #K from 2 to 20
+tries <-100 #Run the K Means algorithm 100 times
+avg.totw.ss <-integer(length(rng)) #Set up an empty vector to hold all of points
+for(v in rng){ # For each value of the range variable
+ v.totw.ss <-integer(tries) #Set up an empty vector to hold the 100 tries
+ for(i in 1:tries){
+ k.temp <-kmeans(data.rm.top,centers=v) #Run kmeans
+ v.totw.ss[i] <-k.temp$tot.withinss#Store the total withinss
+ }
+ avg.totw.ss[v-1] <-mean(v.totw.ss) #Average the 100 total withinss
+}
+plot(rng,avg.totw.ss,type="b", main="Total Within SS by Various K",
+ ylab="Average Total Within Sum of Squares",
+ xlab="Value of K")
+
+# Our graph shows that the change in the value of K seems to be more gradual beyond K=5 so we will consider that as the best value of K for our analysis.
+
+```
+
+
+
+```{r wine, part 2_3}
+wine <-read.csv("~/wine.csv")
+str(wine)
+wssplot <- function(wine, nc=15, seed=1234){
+  wss <- (nrow(wine)-1)*sum(apply(wine,2,var))
+  for (i in 2:nc){
+    set.seed(seed)
+    wss[i] <- sum(kmeans(wine, centers=i)$withinss)}
+  plot(1:nc, wss, type="b", xlab="Number of Clusters",
+       ylab="Within groups sum of squares")}
+df <- scale(wine[-1])
+wssplot(df)
+
+
+library(NbClust)
+set.seed(1234)
+nc <- NbClust(df, min.nc=2, max.nc = 15, method = "kmeans")
+
+barplot(table(nc$Best.n[1,]), xlab = "Number of Clusters", ylab = "Number of Criteria", main = "Number of Clusters Chosen by 26 Criteria")
+
+# We used 3 different methodologies to compute the best value of K. using wssplot we constructed a clustering graph that indicated that K=3 could be the best value of K to use as the change beyond that point is gradual. In second method we used NbClust and provided min and max values of K,  results show that K=3 may be the best value of K. In third method, we used a bar plot to find out the best value. From the resulting bar graph we can see that K=3 is the best value of K so we will use that our analysis.
+
+set.seed(1234)
+fit.km <- kmeans(df, 3, nstart=25)
+(df_km <- table(wine$Wine, fit.km$cluster))
+(Accuracy <- (sum(diag(df_km))/sum(df_km)*100))
+
+# For our K-means analysis, we compared the three clusters we have with the actual target value to predict the accuracy of the model and then plotted the clusters using clustplot.
+
+library(cluster)
+clusplot(df, fit.km$cluster, main='2D representation of the Cluster solution',
+         color=TRUE, shade=TRUE,
+         labels=2, lines=0)
+
+## Part 3
+
+df_rpart <- data.frame(k=fit.km$cluster, df)
+rdf <- df_rpart[sample(1:nrow(df_rpart)), ]
+
+train <- rdf[1:(as.integer(.8*nrow(rdf))-1), ]
+test <- rdf[(as.integer(.8*nrow(rdf))):nrow(rdf), ]
+library(rpart)
+fit <- rpart(k ~ ., data=train, method="class")
+library(rattle)
+fancyRpartPlot(fit)
+pred <- predict(fit, test, type="class")
+(news_tbl <- table(pred, test$k))
+(Accuracy <- (sum(diag(news_tbl))/sum(news_tbl)*100))
+ 
+# In our model, we used the K that we predictd in part 2 as our target variable and evaluated its impact on the rest of variables in dataset. 
+#Our decision tree results indicate that if the proline >=0.026 then the model with look for Phenols content. If phenol > 0.13 then its going to be wine 1 otherwise wine 3. If Proline less than 0.026 then the model will look for OD content. If OD content is >=-0.68 then its wine 2. If OD is <-0.68 then the model will look for color.int content. If color.int >= -0.36 then it will be wine 3 else wine 2.  There are 3 instances of misclassification which means ~8% of the times model is going to misclassify the wine type (misclassification error). If we get more data we can train the model better the error may be low for future predictions. 
+```
+
+```{r part 4}
+wbcd <- read.csv("~/wisc_bc_data.csv", stringsAsFactors = FALSE)
+str(wbcd)
+wbcd <- wbcd[-1]
+table(wbcd$diagnosis)
+wbcd$diagnosis <- factor(wbcd$diagnosis, levels = c("B", "M"), labels = c("Benign", "Malignant"))
+round(prop.table(table(wbcd$diagnosis)) * 100, digits = 1)
+normalize <- function(x) {
+    return ((x - min(x)) / (max(x) - min(x)))
+}
+wbcd_n <- as.data.frame(lapply(wbcd[2:31], normalize))
+summary(wbcd_n)
+wbcd_train <- wbcd_n[1:469, ]
+wbcd_test <- wbcd_n[470:569, ]
+wbcd_train_labels <- wbcd[1:469, 1]
+wbcd_test_labels <- wbcd[470:569, 1]
+library(class)
+wbcd_test_pred <- knn(train = wbcd_train, test = wbcd_test, cl=wbcd_train_labels, k = 21)
+
+(wbcd_tbl <- table(wbcd_test_pred, wbcd_test_labels))
+
+(Accuracy <- (wbcd_tbl[1]+wbcd_tbl[4])/sum(wbcd_tbl)*100)
+
+# our model has an accuracy of 98% showing 2 cases of misclassification where the tumor was predicted to be malignant but was actually benign.
+
+```
+
+```{r news}
+news <- read.csv("~/OnlineNewsPopularity.csv")
+newsShort <- data.frame(news$n_tokens_title, news$n_tokens_content, news$n_unique_tokens, news$n_non_stop_words, news$num_hrefs, news$num_imgs, news$num_videos, news$average_token_length, news$num_keywords, news$kw_max_max, news$global_sentiment_polarity, news$avg_positive_polarity, news$title_subjectivity, news$title_sentiment_polarity, news$abs_title_subjectivity, news$abs_title_sentiment_polarity, news$shares)
+
+colnames(newsShort) <- c("n_tokens_title", "n_tokens_content", "n_unique_tokens", "n_non_stop_words", "num_hrefs", "num_imgs", "num_videos", "average_token_length", "num_keywords", "kw_max_max", "global_sentiment_polarity", "avg_positive_polarity", "title_subjectivity", "title_sentiment_polarity", "abs_title_subjectivity", "abs_title_sentiment_polarity", "shares")
+
+newsShort$popular = rep('na', nrow(newsShort))
+for(i in 1:39644) {
+     if(newsShort$shares[i] >= 1400) {
+         newsShort$popular[i] = "yes"} 
+     else {newsShort$popular[i] = "no"}
+}
+newsShort$shares = newsShort$popular
+#for(i in 1:39644) {
+#  if(newsShort$shares[i] >= 1400) {
+#    newsShort$shares[i] = "yes"} 
+ # else {newsShort$shares[i] = "no"}
+  #cat("i=,",i," shares=",newsShort$shares[i],"\n")
+#}
+
+newsShort$shares <- as.factor(newsShort$shares)
+newsShort <- newsShort[-18]
+news_n <- as.data.frame(lapply(newsShort[1:16], normalize))
+
+
+#news_rand <- news_n[order(runif(10000)), ]
+#set.seed(12345)
+#Split the data into training and test datasets
+news_train <- news_n[1:9000, ]
+news_test <- news_n[9001:10000, ]
+news_train_labels <- newsShort[1:9000, 17]
+news_test_labels <- newsShort[9001:10000, 17]
+news_test_pred <- knn(train = news_train, test = news_test, cl=news_train_labels, k = 5)
+
+(news_tbl <- table(news_test_pred, news_test_labels))
+(Accuracy <- (news_tbl[1]+news_tbl[4])/sum(news_tbl)*100)
+
+```
